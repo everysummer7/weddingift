@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>翊宸 & 芷平 婚禮收禮系統 V6.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #fff9f9; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .btn-active { background-color: #e11d48 !important; color: white !important; }
+        .loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.6); z-index:9999; justify-content:center; align-items:center; backdrop-filter: blur(2px); }
+    </style>
+</head>
+<body class="min-h-screen pb-20">
+
+    <div id="loading" class="loading-overlay flex flex-col">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-rose-600 mb-2"></div>
+        <span class="text-rose-600 text-sm font-bold">同步中...</span>
+    </div>
+
+    <nav class="bg-rose-600 text-white shadow-lg p-4 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <i data-lucide="heart" class="fill-current"></i> 翊宸 & 芷平 婚禮收禮
+            </h1>
+            <div class="flex flex-wrap justify-center gap-2">
+                <button onclick="switchTab('checkin')" id="btn-checkin" class="tab-btn hover:bg-rose-700 px-4 py-2 rounded-lg transition font-medium border border-rose-400">收禮登入</button>
+                <button onclick="switchTab('status')" id="btn-status" class="tab-btn hover:bg-rose-700 px-4 py-2 rounded-lg transition font-medium border border-rose-400">報到狀態</button>
+                <button onclick="switchTab('stats')" id="btn-stats" class="tab-btn hover:bg-rose-700 px-4 py-2 rounded-lg transition font-medium border border-rose-400">統計報表</button>
+                <button onclick="switchTab('admin')" id="btn-admin" class="tab-btn hover:bg-rose-700 px-4 py-2 rounded-lg transition font-medium border border-rose-400">系統管理</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-6">
+        <div id="syncStatus" class="mb-4 text-right text-xs text-gray-400 italic">尚未同步</div>
+        
+        <div id="checkin" class="tab-content active">
+            <div class="flex flex-col lg:flex-row gap-6">
+                <div class="lg:w-1/4 order-2 lg:order-1">
+                    <div class="bg-white p-4 rounded-xl shadow-md border border-gray-100 sticky top-24">
+                        <h2 class="font-bold mb-4 text-rose-600 flex justify-between items-center">
+                            <span><i data-lucide="history" class="inline w-4 mr-1"></i> 最近紀錄</span>
+                        </h2>
+                        <div id="recentLogs" class="space-y-3 text-sm">
+                            <p class="text-gray-400 text-center py-6 italic">載入中...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:w-3/4 order-1 lg:order-2">
+                    <div class="bg-white p-6 rounded-2xl shadow-md border-t-8 border-rose-500">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="relative">
+                                <label class="block text-sm font-bold text-gray-700 mb-1">賓客姓名</label>
+                                <input type="text" id="guestSearch" class="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-rose-400" placeholder="搜尋或手動輸入姓名...">
+                                <div id="suggestionBox" class="absolute z-10 w-full bg-white border rounded-lg mt-1 shadow-xl hidden max-h-60 overflow-y-auto"></div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">分類與桌次</label>
+                                <div class="flex gap-2">
+                                    <select id="guestCategory" class="w-2/3 p-3 bg-gray-50 border border-gray-300 rounded-lg text-rose-600 font-bold">
+                                        <option value="芷平同事">芷平同事</option>
+                                        <option value="芷平朋友">芷平朋友</option>
+                                        <option value="芷平親友">芷平親友</option>
+                                        <option value="翊宸同事">翊宸同事</option>
+                                        <option value="翊宸朋友">翊宸朋友</option>
+                                        <option value="翊宸親友">翊宸親友</option>
+                                        <option value="手動新增">手動新增</option>
+                                    </select>
+                                    <input type="text" id="guestTable" class="w-1/3 p-3 border border-gray-300 rounded-lg bg-gray-50 font-bold text-blue-600" placeholder="桌次">
+                                </div>
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-bold text-gray-700 mb-1">禮金金額</label>
+                                <div class="flex gap-2 mb-3">
+                                    <button onclick="setAmount(2600)" class="flex-1 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-sm font-bold hover:bg-rose-100">2600</button>
+                                    <button onclick="setAmount(3600)" class="flex-1 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-sm font-bold hover:bg-rose-100">3600</button>
+                                    <button onclick="setAmount(6000)" class="flex-1 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-sm font-bold hover:bg-rose-100">6000</button>
+                                    <button onclick="setAmount(6600)" class="flex-1 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-sm font-bold hover:bg-rose-100">6600</button>
+                                </div>
+                                <div class="flex gap-3">
+                                    <input type="number" id="giftAmount" class="w-1/3 p-3 border border-gray-300 rounded-lg text-2xl font-black text-rose-600" placeholder="0">
+                                    <div class="flex-1">
+                                        <input type="text" id="giftNote" class="w-full p-3 border border-gray-300 rounded-lg h-full" placeholder="備註 (如：合包、代領)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="submitCheckin()" id="submitBtn" class="mt-6 w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 rounded-xl shadow-lg text-xl transition-all">立即登記</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="status" class="tab-content space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-2xl shadow-md border-t-4 border-green-500 overflow-hidden">
+                    <div class="p-4 bg-green-50 border-b flex justify-between items-center">
+                        <h2 class="font-bold text-green-700 flex items-center gap-2">
+                            <i data-lucide="user-check"></i> 已報到名單 (<span id="checkedInCount">0</span>)
+                        </h2>
+                    </div>
+                    <div class="max-h-[600px] overflow-y-auto">
+                        <table class="w-full text-left">
+                            <thead class="sticky top-0 bg-white shadow-sm">
+                                <tr class="text-xs text-gray-500 border-b">
+                                    <th class="p-3">流水號</th>
+                                    <th class="p-3">姓名</th>
+                                    <th class="p-3">桌次</th>
+                                    <th class="p-3">喜餅</th>
+                                </tr>
+                            </thead>
+                            <tbody id="checkedInTable" class="text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-md border-t-4 border-amber-500 overflow-hidden">
+                    <div class="p-4 bg-amber-50 border-b flex justify-between items-center">
+                        <h2 class="font-bold text-amber-700 flex items-center gap-2">
+                            <i data-lucide="user-x"></i> 未報到預計名單 (<span id="notCheckedInCount">0</span>)
+                        </h2>
+                    </div>
+                    <div class="max-h-[600px] overflow-y-auto">
+                        <table class="w-full text-left">
+                            <thead class="sticky top-0 bg-white shadow-sm">
+                                <tr class="text-xs text-gray-500 border-b">
+                                    <th class="p-3">分類</th>
+                                    <th class="p-3">姓名</th>
+                                    <th class="p-3">預排桌次</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notCheckedInTable" class="text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="stats" class="tab-content space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-2xl font-bold text-rose-700">數據總覽</h2>
+                <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold shadow-md transition">
+                    <i data-lucide="download"></i> 匯出 Excel 報表
+                </button>
+            </div>
+            
+            <div id="statSummary" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+            
+            <div class="bg-white p-6 rounded-xl shadow border border-rose-100">
+                <h3 class="font-bold text-lg mb-4 text-rose-700">分類統計明細</h3>
+                <div id="categoryStatsList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+            </div>
+        </div>
+
+        <div id="admin" class="tab-content space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-md border-t-8 border-gray-700">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-4 border p-4 rounded-xl bg-gray-50">
+                        <h3 class="font-bold text-rose-700">1. 匯入受邀名單 (Excel)</h3>
+                        <p class="text-xs text-gray-500">格式：分類 | 姓名 | 桌次</p>
+                        <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="w-full text-sm">
+                    </div>
+                    <div class="space-y-4 border p-4 rounded-xl bg-red-50">
+                        <h3 class="font-bold text-red-700">2. 雲端清除</h3>
+                        <button onclick="clearCloudRecords()" class="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold">
+                            清除所有雲端禮金紀錄
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 設定區
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbyUZARgMEERkFITLVNYRyScKzg2LUFWxhESEOyln8VfcrNHicGt7TnBCRJ483q8GU96/exec";
+        const ADMIN_PASSWORD = "20160307";
+        const MY_CATEGORIES = ["芷平同事", "芷平朋友", "芷平親友", "翊宸同事", "翊宸朋友", "翊宸親友"];
+
+        let guestList = JSON.parse(localStorage.getItem('wedding_guests')) || [];
+        let checkinRecords = []; 
+        let serialCounter = 1;
+
+        lucide.createIcons();
+        syncFromCloud(); 
+
+        function setAmount(val) {
+            document.getElementById('giftAmount').value = val;
+        }
+
+        async function syncFromCloud(showOverlay = false) {
+            if(!GAS_URL) return;
+            if(showOverlay) document.getElementById('loading').style.display = 'flex';
+            
+            try {
+                const response = await fetch(GAS_URL);
+                const data = await response.json();
+                checkinRecords = data;
+                
+                if (checkinRecords.length > 0) {
+                    const lastSerial = Math.max(...checkinRecords.map(r => parseInt(r.serial)));
+                    serialCounter = isNaN(lastSerial) ? 1 : lastSerial + 1;
+                    
+                    // 同步本地名單狀態
+                    checkinRecords.forEach(rec => {
+                        const idx = guestList.findIndex(g => g.name === rec.name);
+                        if(idx !== -1) guestList[idx].hasCheckedIn = true;
+                    });
+                }
+                
+                updateUI();
+                document.getElementById('syncStatus').innerText = "最後同步時間: " + new Date().toLocaleTimeString();
+            } catch (e) {
+                console.error("同步失敗:", e);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        async function submitCheckin() {
+            const name = document.getElementById('guestSearch').value.trim();
+            const category = document.getElementById('guestCategory').value;
+            const table = document.getElementById('guestTable').value.trim();
+            const amountStr = document.getElementById('giftAmount').value;
+            
+            if (!name || !amountStr) return alert("請填寫姓名與金額");
+
+            const newRecord = {
+                action: "add",
+                serial: serialCounter.toString().padStart(2, '0'),
+                name: name,
+                category: category,
+                table: table,
+                amount: parseInt(amountStr),
+                note: document.getElementById('giftNote').value.trim(),
+                isCookieGiven: "尚未發餅", // 需求 4: false 改為 尚未發餅
+                time: new Date().toLocaleTimeString('zh-TW', { hour12: false })
+            };
+
+            // 樂觀更新
+            checkinRecords.push(newRecord);
+            serialCounter++;
+            
+            const gi = guestList.findIndex(g => g.name === name);
+            if(gi !== -1) {
+                guestList[gi].hasCheckedIn = true;
+                localStorage.setItem('wedding_guests', JSON.stringify(guestList));
+            }
+
+            updateUI();
+            
+            // 清空
+            document.getElementById('guestSearch').value = "";
+            document.getElementById('giftAmount').value = "";
+            document.getElementById('giftNote').value = "";
+            document.getElementById('guestTable').value = "";
+
+            try {
+                await fetch(GAS_URL, { 
+                    method: "POST", 
+                    mode: 'no-cors',
+                    body: JSON.stringify(newRecord) 
+                });
+            } catch (e) {
+                alert("雲端同步失敗！");
+                syncFromCloud(true);
+            }
+        }
+
+        async function toggleCookie(serial, currentVal) {
+            // 需求 4: 狀態切換邏輯
+            const newVal = (currentVal === "尚未發餅") ? "已領取" : "尚未發餅";
+            
+            const idx = checkinRecords.findIndex(r => r.serial == serial);
+            if(idx !== -1) {
+                checkinRecords[idx].isCookieGiven = newVal;
+                renderStatusTables();
+            }
+
+            try {
+                await fetch(GAS_URL, {
+                    method: "POST",
+                    mode: 'no-cors',
+                    body: JSON.stringify({ 
+                        action: "toggleCookie", 
+                        serial: serial.toString().padStart(2, '0'), 
+                        status: newVal 
+                    })
+                });
+            } catch (e) {
+                syncFromCloud(true);
+            }
+        }
+
+        function updateUI() {
+            updateRecentLogs();
+            if(document.getElementById('status').classList.contains('active')) renderStatusTables();
+            if(document.getElementById('stats').classList.contains('active')) updateStats();
+        }
+
+        function updateRecentLogs() {
+            const container = document.getElementById('recentLogs');
+            if (checkinRecords.length === 0) {
+                container.innerHTML = `<p class="text-gray-400 text-center py-6 italic">尚無紀錄</p>`;
+                return;
+            }
+            const recent = [...checkinRecords].reverse().slice(0, 10);
+            container.innerHTML = recent.map(r => `
+                <div class="p-3 bg-white border-l-4 border-rose-400 shadow-sm rounded flex justify-between items-center transition-all hover:bg-rose-50">
+                    <div>
+                        <span class="font-bold text-gray-800">#${r.serial} ${r.name}</span>
+                        <p class="text-rose-600 font-black text-xs">$${parseInt(r.amount).toLocaleString()}</p>
+                    </div>
+                    <span class="text-[10px] text-gray-400">${r.time}</span>
+                </div>
+            `).join('');
+        }
+
+        // 需求 1: 渲染報到狀態頁面
+        function renderStatusTables() {
+            // 已報到
+            const checkedInBody = document.getElementById('checkedInTable');
+            const sortedCheckedIn = [...checkinRecords].sort((a, b) => parseInt(a.serial) - parseInt(b.serial));
+            document.getElementById('checkedInCount').innerText = sortedCheckedIn.length;
+            
+            checkedInBody.innerHTML = sortedCheckedIn.map(r => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-3 font-mono font-bold text-rose-500">#${r.serial}</td>
+                    <td class="p-3 font-bold">${r.name}</td>
+                    <td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">${r.table || '-'}</span></td>
+                    <td class="p-3 text-center">
+                        <button onclick="toggleCookie('${r.serial}', '${r.isCookieGiven}')" 
+                                class="w-full py-1 rounded-full text-xs font-bold transition-all ${r.isCookieGiven === '已領取' ? 'bg-green-500 text-white' : 'border border-rose-400 text-rose-400'}">
+                            ${r.isCookieGiven}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            // 未報到
+            const notCheckedInBody = document.getElementById('notCheckedInTable');
+            const notCheckedInList = guestList.filter(g => !g.hasCheckedIn);
+            document.getElementById('notCheckedInCount').innerText = notCheckedInList.length;
+
+            notCheckedInBody.innerHTML = notCheckedInList.map(g => `
+                <tr class="border-b hover:bg-gray-50 text-gray-600">
+                    <td class="p-3 text-xs">${g.category}</td>
+                    <td class="p-3 font-medium">${g.name}</td>
+                    <td class="p-3 text-xs">${g.table}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updateStats() {
+            const total = checkinRecords.reduce((s, r) => s + parseInt(r.amount || 0), 0);
+            const cookieTotal = checkinRecords.filter(r => r.isCookieGiven === "已領取").length;
+            
+            document.getElementById('statSummary').innerHTML = `
+                <div class="bg-white p-4 rounded shadow border-b-4 border-rose-500 text-center">
+                    <p class="text-xs text-gray-500">總禮金</p><p class="text-xl font-black text-rose-600">$${total.toLocaleString()}</p>
+                </div>
+                <div class="bg-white p-4 rounded shadow border-b-4 border-blue-500 text-center">
+                    <p class="text-xs text-gray-500">已報到人數</p><p class="text-xl font-bold">${checkinRecords.length}</p>
+                </div>
+                <div class="bg-white p-4 rounded shadow border-b-4 border-green-500 text-center">
+                    <p class="text-xs text-gray-500">喜餅已發</p><p class="text-xl font-bold text-green-600">${cookieTotal}</p>
+                </div>
+                <div class="bg-white p-4 rounded shadow border-b-4 border-amber-500 text-center">
+                    <p class="text-xs text-gray-500">未到名單</p><p class="text-xl font-bold text-amber-600">${guestList.filter(g=>!g.hasCheckedIn).length}</p>
+                </div>
+            `;
+
+            const catHtml = MY_CATEGORIES.map(cat => {
+                const recs = checkinRecords.filter(r => r.category === cat);
+                const sum = recs.reduce((s, r) => s + parseInt(r.amount || 0), 0);
+                return `<div class="flex justify-between p-3 bg-white border rounded shadow-sm">
+                    <span class="font-bold text-gray-700">${cat}</span>
+                    <span class="font-black text-rose-600">$${sum.toLocaleString()} (${recs.length}份)</span>
+                </div>`;
+            }).join('');
+            document.getElementById('categoryStatsList').innerHTML = catHtml;
+        }
+
+        // 需求 2: 匯出 Excel
+        function exportToExcel() {
+            if (checkinRecords.length === 0) return alert("尚無資料可匯出");
+            
+            const data = checkinRecords.map(r => ({
+                "流水號": r.serial,
+                "姓名": r.name,
+                "分類": r.category,
+                "桌次": r.table,
+                "禮金金額": r.amount,
+                "喜餅狀態": r.isCookieGiven,
+                "備註": r.note,
+                "登記時間": r.time
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "禮金清單");
+            XLSX.writeFile(wb, `婚禮禮金紀錄_${new Date().toLocaleDateString()}.xlsx`);
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('btn-active'));
+            document.getElementById(tabName).classList.add('active');
+            document.getElementById('btn-' + tabName).classList.add('btn-active');
+            updateUI();
+            lucide.createIcons();
+        }
+
+        // 搜尋自動完成
+        const searchInput = document.getElementById('guestSearch');
+        const suggestionBox = document.getElementById('suggestionBox');
+        searchInput.addEventListener('input', function() {
+            const val = this.value.trim();
+            if (!val) { suggestionBox.classList.add('hidden'); return; }
+            const matches = guestList.filter(g => g.name.includes(val) && !g.hasCheckedIn);
+            let html = matches.map(m => `
+                <div class="p-3 hover:bg-rose-50 cursor-pointer border-b flex justify-between" onclick="selectGuest('${m.name}','${m.category}','${m.table}')">
+                    <span>${m.name} <small class="text-gray-400">${m.category}</small></span>
+                    <span class="text-blue-500 font-bold">${m.table}</span>
+                </div>
+            `).join('');
+            if(!matches.length) html = `<div class="p-3 text-rose-500 font-bold" onclick="selectGuest('${val}','手動新增','')">+ 新增「${val}」</div>`;
+            suggestionBox.innerHTML = html; suggestionBox.classList.remove('hidden');
+        });
+
+        function selectGuest(n, c, t) {
+            searchInput.value = n;
+            document.getElementById('guestCategory').value = MY_CATEGORIES.includes(c) ? c : "手動新增";
+            document.getElementById('guestTable').value = t;
+            suggestionBox.classList.add('hidden');
+        }
+
+        // Excel 受邀名單匯入
+        document.getElementById('excelFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const workbook = XLSX.read(evt.target.result, { type: 'binary' });
+                const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+                let startIndex = (rows[0] && rows[0].toString().includes("姓名")) ? 1 : 0;
+                guestList = rows.slice(startIndex).map(r => ({
+                    category: (r[0] || "未分類").toString().trim(),
+                    name: (r[1] || "").toString().trim(),
+                    table: (r[2] || "未安排").toString().trim(),
+                    hasCheckedIn: false
+                })).filter(g => g.name);
+                localStorage.setItem('wedding_guests', JSON.stringify(guestList));
+                alert(`成功載入 ${guestList.length} 位受邀賓客。`);
+                syncFromCloud(true); 
+            };
+            reader.readAsBinaryString(file);
+        });
+
+        async function clearCloudRecords() {
+            const pw = prompt("請輸入管理密碼：");
+            if (pw !== ADMIN_PASSWORD) return alert("密碼錯誤");
+            if (!confirm("確定要永久刪除所有雲端紀錄嗎？")) return;
+            document.getElementById('loading').style.display = 'flex';
+            try {
+                await fetch(GAS_URL, { 
+                    method: "POST", 
+                    mode: 'no-cors',
+                    body: JSON.stringify({ action: "clearAll", password: ADMIN_PASSWORD }) 
+                });
+                guestList.forEach(g => g.hasCheckedIn = false);
+                localStorage.setItem('wedding_guests', JSON.stringify(guestList));
+                checkinRecords = [];
+                setTimeout(() => syncFromCloud(true), 1000);
+            } catch(e) {
+                alert("刪除失敗");
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
