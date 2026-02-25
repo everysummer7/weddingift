@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>翊宸 & 芷平 婚禮收禮系統 V6.0</title>
+    <title>翊宸 & 芷平 婚禮收禮系統 V7.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -14,6 +14,8 @@
         .tab-content.active { display: block; }
         .btn-active { background-color: #e11d48 !important; color: white !important; }
         .loading-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.6); z-index:9999; justify-content:center; align-items:center; backdrop-filter: blur(2px); }
+        .modal { display: none; position: fixed; z-index: 10001; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
     </style>
 </head>
 <body class="min-h-screen pb-20">
@@ -21,6 +23,32 @@
     <div id="loading" class="loading-overlay flex flex-col">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-rose-600 mb-2"></div>
         <span class="text-rose-600 text-sm font-bold">同步中...</span>
+    </div>
+
+    <div id="editModal" class="modal">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 max-w-[90%]">
+            <h3 class="text-lg font-bold mb-4 text-rose-600 flex items-center gap-2">
+                <i data-lucide="edit-3" class="w-5"></i> 修改紀錄 <span id="editSerial" class="text-gray-400 text-sm"></span>
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">金額</label>
+                    <input type="number" id="editAmount" class="w-full p-2 border rounded-lg text-rose-600 font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">桌次</label>
+                    <input type="text" id="editTable" class="w-full p-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">備註</label>
+                    <input type="text" id="editNote" class="w-full p-2 border rounded-lg">
+                </div>
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeEditModal()" class="flex-1 py-2 bg-gray-100 text-gray-600 rounded-lg font-bold">取消</button>
+                <button onclick="saveEdit()" class="flex-1 py-2 bg-rose-500 text-white rounded-lg font-bold">儲存修改</button>
+            </div>
+        </div>
     </div>
 
     <nav class="bg-rose-600 text-white shadow-lg p-4 sticky top-0 z-50">
@@ -45,7 +73,7 @@
                 <div class="lg:w-1/4 order-2 lg:order-1">
                     <div class="bg-white p-4 rounded-xl shadow-md border border-gray-100 sticky top-24">
                         <h2 class="font-bold mb-4 text-rose-600 flex justify-between items-center">
-                            <span><i data-lucide="history" class="inline w-4 mr-1"></i> 最近紀錄</span>
+                            <span><i data-lucide="history" class="inline w-4 mr-1"></i> 最近紀錄 (前五筆)</span>
                         </h2>
                         <div id="recentLogs" class="space-y-3 text-sm">
                             <p class="text-gray-400 text-center py-6 italic">載入中...</p>
@@ -58,7 +86,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="relative">
                                 <label class="block text-sm font-bold text-gray-700 mb-1">賓客姓名</label>
-                                <input type="text" id="guestSearch" class="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-rose-400" placeholder="搜尋或手動輸入姓名...">
+                                <input type="text" id="guestSearch" class="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-rose-400" placeholder="搜尋雲端名單...">
                                 <div id="suggestionBox" class="absolute z-10 w-full bg-white border rounded-lg mt-1 shadow-xl hidden max-h-60 overflow-y-auto"></div>
                             </div>
                             <div>
@@ -162,14 +190,21 @@
         <div id="admin" class="tab-content space-y-6">
             <div class="bg-white p-6 rounded-2xl shadow-md border-t-8 border-gray-700">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div class="space-y-4 border p-4 rounded-xl bg-gray-50">
-                        <h3 class="font-bold text-rose-700">1. 匯入受邀名單 (Excel)</h3>
-                        <p class="text-xs text-gray-500">格式：分類 | 姓名 | 桌次</p>
-                        <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="w-full text-sm">
+                    <div class="space-y-4 border p-4 rounded-xl bg-gray-50 flex flex-col justify-center text-center">
+                        <h3 class="font-bold text-rose-700 flex items-center justify-center gap-2">
+                            <i data-lucide="cloud-download" class="w-5"></i> 1. 同步賓客座位名單
+                        </h3>
+                        <p class="text-xs text-gray-500">拉取 Google Sheet 最新的受邀名單與桌次</p>
+                        <button onclick="fetchCloudGuestList(true)" class="bg-rose-500 hover:bg-rose-600 text-white py-3 px-6 rounded-xl font-bold shadow transition mx-auto">
+                            立即同步雲端座位名單
+                        </button>
                     </div>
-                    <div class="space-y-4 border p-4 rounded-xl bg-red-50">
-                        <h3 class="font-bold text-red-700">2. 雲端清除</h3>
-                        <button onclick="clearCloudRecords()" class="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold">
+                    <div class="space-y-4 border p-4 rounded-xl bg-red-50 flex flex-col justify-center text-center">
+                        <h3 class="font-bold text-red-700 flex items-center justify-center gap-2">
+                            <i data-lucide="trash-2" class="w-5"></i> 2. 雲端清除
+                        </h3>
+                        <p class="text-xs text-gray-500">此動作將刪除所有已填寫的禮金紀錄</p>
+                        <button onclick="clearCloudRecords()" class="bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-xl font-bold shadow transition mx-auto">
                             清除所有雲端禮金紀錄
                         </button>
                     </div>
@@ -181,15 +216,50 @@
     <script>
         // 設定區
         const GAS_URL = "https://script.google.com/macros/s/AKfycbyUZARgMEERkFITLVNYRyScKzg2LUFWxhESEOyln8VfcrNHicGt7TnBCRJ483q8GU96/exec";
+        const GUEST_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1tEUPslATNhdMiMILhTtcsWwmjXqrSdpbE1wtoA8dOMU/gviz/tq?tqx=out:csv"; 
         const ADMIN_PASSWORD = "20160307";
         const MY_CATEGORIES = ["芷平同事", "芷平朋友", "芷平親友", "翊宸同事", "翊宸朋友", "翊宸親友"];
 
-        let guestList = JSON.parse(localStorage.getItem('wedding_guests')) || [];
+        let guestList = []; 
         let checkinRecords = []; 
         let serialCounter = 1;
+        let currentEditSerial = null;
 
         lucide.createIcons();
-        syncFromCloud(); 
+        initSystem(); 
+
+        async function initSystem() {
+            await fetchCloudGuestList(); 
+            await syncFromCloud();       
+        }
+
+        async function fetchCloudGuestList(manualTrigger = false) {
+            document.getElementById('loading').style.display = 'flex';
+            try {
+                const response = await fetch(GUEST_SHEET_CSV_URL);
+                const csvData = await response.text();
+                const rows = csvData.split('\n').map(row => {
+                    return row.split(',').map(cell => cell.replace(/^"(.*)"$/, '$1').trim());
+                });
+
+                const startIndex = 1; 
+                guestList = rows.slice(startIndex).map(r => ({
+                    category: (r[0] || "未分類"),
+                    name: (r[1] || ""),
+                    table: (r[2] || "未安排"),
+                    hasCheckedIn: false
+                })).filter(g => g.name);
+
+                localStorage.setItem('wedding_guests', JSON.stringify(guestList));
+                if(manualTrigger) alert(`同步成功！已載入 ${guestList.length} 位賓客座位。`);
+            } catch (e) {
+                console.error("雲端名單抓取失敗:", e);
+                guestList = JSON.parse(localStorage.getItem('wedding_guests')) || [];
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                updateUI();
+            }
+        }
 
         function setAmount(val) {
             document.getElementById('giftAmount').value = val;
@@ -208,7 +278,7 @@
                     const lastSerial = Math.max(...checkinRecords.map(r => parseInt(r.serial)));
                     serialCounter = isNaN(lastSerial) ? 1 : lastSerial + 1;
                     
-                    // 同步本地名單狀態
+                    guestList.forEach(g => g.hasCheckedIn = false);
                     checkinRecords.forEach(rec => {
                         const idx = guestList.findIndex(g => g.name === rec.name);
                         if(idx !== -1) guestList[idx].hasCheckedIn = true;
@@ -240,23 +310,20 @@
                 table: table,
                 amount: parseInt(amountStr),
                 note: document.getElementById('giftNote').value.trim(),
-                isCookieGiven: "尚未發餅", // 需求 4: false 改為 尚未發餅
+                isCookieGiven: "尚未發餅",
                 time: new Date().toLocaleTimeString('zh-TW', { hour12: false })
             };
 
-            // 樂觀更新
             checkinRecords.push(newRecord);
             serialCounter++;
             
             const gi = guestList.findIndex(g => g.name === name);
             if(gi !== -1) {
                 guestList[gi].hasCheckedIn = true;
-                localStorage.setItem('wedding_guests', JSON.stringify(guestList));
             }
 
             updateUI();
             
-            // 清空
             document.getElementById('guestSearch').value = "";
             document.getElementById('giftAmount').value = "";
             document.getElementById('giftNote').value = "";
@@ -274,10 +341,61 @@
             }
         }
 
-        async function toggleCookie(serial, currentVal) {
-            // 需求 4: 狀態切換邏輯
-            const newVal = (currentVal === "尚未發餅") ? "已領取" : "尚未發餅";
+        // 修改功能邏輯
+        function openEditModal(serial) {
+            const record = checkinRecords.find(r => r.serial == serial);
+            if(!record) return;
             
+            currentEditSerial = serial;
+            document.getElementById('editSerial').innerText = `#${serial}`;
+            document.getElementById('editAmount').value = record.amount;
+            document.getElementById('editTable').value = record.table;
+            document.getElementById('editNote').value = record.note;
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+            currentEditSerial = null;
+        }
+
+        async function saveEdit() {
+            const amount = document.getElementById('editAmount').value;
+            const table = document.getElementById('editTable').value;
+            const note = document.getElementById('editNote').value;
+            
+            const idx = checkinRecords.findIndex(r => r.serial == currentEditSerial);
+            if(idx === -1) return;
+
+            checkinRecords[idx].amount = amount;
+            checkinRecords[idx].table = table;
+            checkinRecords[idx].note = note;
+
+            updateUI();
+            closeEditModal();
+            document.getElementById('loading').style.display = 'flex';
+
+            try {
+                await fetch(GAS_URL, {
+                    method: "POST",
+                    mode: 'no-cors',
+                    body: JSON.stringify({
+                        action: "updateRecord",
+                        serial: currentEditSerial.toString().padStart(2, '0'),
+                        amount: amount,
+                        table: table,
+                        note: note
+                    })
+                });
+                setTimeout(() => syncFromCloud(false), 500);
+            } catch (e) {
+                alert("雲端修改失敗");
+                syncFromCloud(true);
+            }
+        }
+
+        async function toggleCookie(serial, currentVal) {
+            const newVal = (currentVal === "尚未發餅") ? "已領取" : "尚未發餅";
             const idx = checkinRecords.findIndex(r => r.serial == serial);
             if(idx !== -1) {
                 checkinRecords[idx].isCookieGiven = newVal;
@@ -303,6 +421,7 @@
             updateRecentLogs();
             if(document.getElementById('status').classList.contains('active')) renderStatusTables();
             if(document.getElementById('stats').classList.contains('active')) updateStats();
+            lucide.createIcons();
         }
 
         function updateRecentLogs() {
@@ -311,21 +430,27 @@
                 container.innerHTML = `<p class="text-gray-400 text-center py-6 italic">尚無紀錄</p>`;
                 return;
             }
-            const recent = [...checkinRecords].reverse().slice(0, 10);
+            const recent = [...checkinRecords].reverse().slice(0, 5);
             container.innerHTML = recent.map(r => `
                 <div class="p-3 bg-white border-l-4 border-rose-400 shadow-sm rounded flex justify-between items-center transition-all hover:bg-rose-50">
-                    <div>
-                        <span class="font-bold text-gray-800">#${r.serial} ${r.name}</span>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-gray-800">#${r.serial} ${r.name}</span>
+                            <span class="text-[10px] bg-blue-50 text-blue-500 px-1 rounded">${r.table || '未設定'}</span>
+                        </div>
                         <p class="text-rose-600 font-black text-xs">$${parseInt(r.amount).toLocaleString()}</p>
                     </div>
-                    <span class="text-[10px] text-gray-400">${r.time}</span>
+                    <div class="flex flex-col items-end gap-1">
+                        <span class="text-[10px] text-gray-400">${r.time}</span>
+                        <button onclick="openEditModal('${r.serial}')" class="text-xs bg-gray-100 hover:bg-rose-100 text-gray-500 hover:text-rose-600 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                            <i data-lucide="edit-3" class="w-3"></i>修改
+                        </button>
+                    </div>
                 </div>
             `).join('');
         }
 
-        // 需求 1: 渲染報到狀態頁面
         function renderStatusTables() {
-            // 已報到
             const checkedInBody = document.getElementById('checkedInTable');
             const sortedCheckedIn = [...checkinRecords].sort((a, b) => parseInt(a.serial) - parseInt(b.serial));
             document.getElementById('checkedInCount').innerText = sortedCheckedIn.length;
@@ -344,7 +469,6 @@
                 </tr>
             `).join('');
 
-            // 未報到
             const notCheckedInBody = document.getElementById('notCheckedInTable');
             const notCheckedInList = guestList.filter(g => !g.hasCheckedIn);
             document.getElementById('notCheckedInCount').innerText = notCheckedInList.length;
@@ -388,10 +512,8 @@
             document.getElementById('categoryStatsList').innerHTML = catHtml;
         }
 
-        // 需求 2: 匯出 Excel
         function exportToExcel() {
             if (checkinRecords.length === 0) return alert("尚無資料可匯出");
-            
             const data = checkinRecords.map(r => ({
                 "流水號": r.serial,
                 "姓名": r.name,
@@ -402,7 +524,6 @@
                 "備註": r.note,
                 "登記時間": r.time
             }));
-
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "禮金清單");
@@ -415,10 +536,8 @@
             document.getElementById(tabName).classList.add('active');
             document.getElementById('btn-' + tabName).classList.add('btn-active');
             updateUI();
-            lucide.createIcons();
         }
 
-        // 搜尋自動完成
         const searchInput = document.getElementById('guestSearch');
         const suggestionBox = document.getElementById('suggestionBox');
         searchInput.addEventListener('input', function() {
@@ -442,27 +561,6 @@
             suggestionBox.classList.add('hidden');
         }
 
-        // Excel 受邀名單匯入
-        document.getElementById('excelFileInput').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                const workbook = XLSX.read(evt.target.result, { type: 'binary' });
-                const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-                let startIndex = (rows[0] && rows[0].toString().includes("姓名")) ? 1 : 0;
-                guestList = rows.slice(startIndex).map(r => ({
-                    category: (r[0] || "未分類").toString().trim(),
-                    name: (r[1] || "").toString().trim(),
-                    table: (r[2] || "未安排").toString().trim(),
-                    hasCheckedIn: false
-                })).filter(g => g.name);
-                localStorage.setItem('wedding_guests', JSON.stringify(guestList));
-                alert(`成功載入 ${guestList.length} 位受邀賓客。`);
-                syncFromCloud(true); 
-            };
-            reader.readAsBinaryString(file);
-        });
-
         async function clearCloudRecords() {
             const pw = prompt("請輸入管理密碼：");
             if (pw !== ADMIN_PASSWORD) return alert("密碼錯誤");
@@ -475,7 +573,6 @@
                     body: JSON.stringify({ action: "clearAll", password: ADMIN_PASSWORD }) 
                 });
                 guestList.forEach(g => g.hasCheckedIn = false);
-                localStorage.setItem('wedding_guests', JSON.stringify(guestList));
                 checkinRecords = [];
                 setTimeout(() => syncFromCloud(true), 1000);
             } catch(e) {
