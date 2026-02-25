@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>翊宸 & 芷平 婚禮收禮系統 V7.5</title>
+    <title>翊宸 & 芷平 婚禮收禮系統 V7.7</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -302,6 +302,12 @@
             
             if (!name || !amountStr) return alert("請填寫姓名與金額");
 
+            // 根據分類邏輯判斷預設喜餅狀態
+            let defaultCookieStatus = "尚未發餅(西式)";
+            if (category === "芷平親友") {
+                defaultCookieStatus = "尚未發餅(中+西)";
+            }
+
             const newRecord = {
                 action: "add",
                 serial: serialCounter.toString().padStart(2, '0'),
@@ -310,7 +316,7 @@
                 table: table,
                 amount: parseInt(amountStr),
                 note: document.getElementById('giftNote').value.trim(),
-                isCookieGiven: "尚未發餅",
+                isCookieGiven: defaultCookieStatus, // 使用判斷後的狀態
                 time: new Date().toLocaleTimeString('zh-TW', { hour12: false })
             };
 
@@ -341,7 +347,6 @@
             }
         }
 
-        // 修改功能邏輯
         function openEditModal(serial) {
             const record = checkinRecords.find(r => r.serial == serial);
             if(!record) return;
@@ -395,7 +400,13 @@
         }
 
         async function toggleCookie(serial, currentVal) {
-            const newVal = (currentVal === "尚未發餅") ? "已領取" : "尚未發餅";
+            // 切換邏輯：點擊後一律變更為「已領取」，再次點擊則根據分類回歸對應的「尚未發餅」狀態
+            let newVal = "已領取";
+            if (currentVal === "已領取") {
+                const record = checkinRecords.find(r => r.serial == serial);
+                newVal = (record && record.category === "芷平親友") ? "尚未發餅(中+西)" : "尚未發餅(西式)";
+            }
+
             const idx = checkinRecords.findIndex(r => r.serial == serial);
             if(idx !== -1) {
                 checkinRecords[idx].isCookieGiven = newVal;
@@ -442,9 +453,6 @@
                     </div>
                     <div class="flex flex-col items-end gap-1">
                         <span class="text-[10px] text-gray-400">${r.time}</span>
-                        <button onclick="openEditModal('${r.serial}')" class="text-xs bg-gray-100 hover:bg-rose-100 text-gray-500 hover:text-rose-600 px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                            <i data-lucide="edit-3" class="w-3"></i>修改
-                        </button>
                     </div>
                 </div>
             `).join('');
@@ -462,7 +470,7 @@
                     <td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">${r.table || '-'}</span></td>
                     <td class="p-3 text-center">
                         <button onclick="toggleCookie('${r.serial}', '${r.isCookieGiven}')" 
-                                class="w-full py-1 rounded-full text-xs font-bold transition-all ${r.isCookieGiven === '已領取' ? 'bg-green-500 text-white' : 'border border-rose-400 text-rose-400'}">
+                                class="w-full py-1 rounded-full text-[10px] font-bold transition-all ${r.isCookieGiven === '已領取' ? 'bg-green-500 text-white' : 'border border-rose-400 text-rose-400'}">
                             ${r.isCookieGiven}
                         </button>
                     </td>
